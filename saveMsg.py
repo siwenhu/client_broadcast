@@ -30,12 +30,14 @@ class SavaFile(QThread):
             if QString(commandsOutput[1]).contains("64 bytes from"):
                 pass			
             else:
-                os.system("cp -rf /var/log/message /opt/morningcloud/massclouds/message")
+                os.system("cp -rf /var/log/messages /opt/morningcloud/massclouds/messages")
                 self.writeFile()
                 self.stopFlag = True
         else:
-            os.system("cp -rf /var/log/message /opt/morningcloud/massclouds/message")
+            print "save file"
+            os.system("cp -rf /var/log/messages /opt/morningcloud/massclouds/messages")
             self.writeFile()
+            print "save file end"
             self.stopFlag = True
 
 
