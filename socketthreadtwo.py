@@ -51,12 +51,9 @@ class SocketThread(QThread):
         self.connect(self.udpSocketTwo,SIGNAL("readyRead()"),self.dataReceiveTwo)
         self.result = self.udpSocketTwo.bind(self.porttwo)
         if self.result:
-            self.joinGroup = self.udpSocketTwo.joinMulticastGroup(self.mcast_addr)
             self.joinGroupTwo = self.udpSocketTwo.joinMulticastGroup(self.mcast_addr_two)
-            print("joinmulticastGroup %d" % self.joinGroup)
+            print("joinmulticastGroup %d" % self.joinGroupTwo)
             
-        self.mcast_addr_own = QHostAddress("224.0.0.19")
-        self.bindUdpPort()
        
         if not os.path.exists(os.path.dirname(LOG_PATH)):
             os.makedirs(os.path.dirname(LOG_PATH))
@@ -70,18 +67,18 @@ class SocketThread(QThread):
         self.logger.addHandler(handler)           # ???logger??????handle
         self.logger.setLevel(logging.DEBUG)
 
+        self.timer = QTimer()
+        self.connect(self.timer, SIGNAL("timeout()"), self.bindUdpPort)
+        self.timer.start(1000)
+
+
     def bindUdpPort(self):
-        if not self.results:
-            self.results = self.udpSocket.bind(self.port)
-            self.udpSocket.joinMulticastGroup(self.mcast_addr)
-        if not self.result:
-            self.result = self.udpSocketTwo.bind(self.porttwo)   
-            self.udpSocketTwo.joinMulticastGroup(self.mcast_addr_two)
-        if not self.joinGroup: 
-            self.udpSocket.joinMulticastGroup(self.mcast_addr)
-        if not self.joinGroupTwo:
-            self.udpSocketTwo.joinMulticastGroup(self.mcast_addr_two)
-            
+        if not self.joinGroupTwo: 
+            self.joinGroupTwo = self.udpSocketTwo.joinMulticastGroup(self.mcast_addr_two)
+            self.logger.info("joinGroupTwo:%d" % self.joinGroupTwo) 
+        else:
+            self.timer.stop()
+
     def dataReceive(self):
         while self.udpSocket.hasPendingDatagrams():
             try:
@@ -153,6 +150,7 @@ class SocketThread(QThread):
         
 
     def slotStartAllBroadcast(self,msgs):
+        self.udpSocket.joinMulticastGroup(self.mcast_addr)
         self.emit(SIGNAL("startbroadcast"))
         self.avilableframenum = 0
         self.necnum = 0
@@ -161,7 +159,7 @@ class SocketThread(QThread):
 
     
     def slotStopBroadcast(self):
-        self.udpSocket.leaveMulticastGroup(self.mcast_addr_own)
+        self.udpSocket.leaveMulticastGroup(self.mcast_addr)
         self.emit(SIGNAL("stopbroadcast"))
         self.broadFlag = False
         self.currentStudent = False
@@ -179,7 +177,7 @@ class SocketThread(QThread):
             elif msg.split("#")[0] == "stopbroadcast":
                 print "stopbroadcast"
                 self.logger.info("stopbroadcast") 
-                self.udpSocket.leaveMulticastGroup(self.mcast_addr_own)
+                self.udpSocket.leaveMulticastGroup(self.mcast_addr)
                     
                 self.emit(SIGNAL("stopbroadcast"))
                 self.broadFlag = False
