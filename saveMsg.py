@@ -25,7 +25,7 @@ class SavaFile(QThread):
        
     def savaLog(self):
         commandsOutput = commands.getstatusoutput("ping 192.168.0.1 -c 3")
-        print commandsOutput
+        #print commandsOutput
         if commandsOutput[0] == 0:
             if QString(commandsOutput[1]).contains("64 bytes from"):
                 pass			

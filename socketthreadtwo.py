@@ -89,6 +89,9 @@ class SocketThread(QThread):
                 if self.broadFlag == False:
                     continue
                 msg = msglist[0]
+                if len(msg) <= 21:
+                    print "msg data smaller" 
+                    continue
                 timetemp = msg[0:17]
                 datanumth = msg[17:19]
                 datatotalnum = msg[19:21]
@@ -194,11 +197,11 @@ class SocketThread(QThread):
                 time.sleep(0.01)
                 continue
             
-            msg = self.currentframe
+            #msg = self.currentframe
             self.necnum+=1
             self.avilableframenum+=1
-            self.emit(SIGNAL("imgsignal"),msg)
-            self.msginfo = msg
+            self.emit(SIGNAL("imgsignal"), self.currentframe)
+            #self.msginfo = msg
                     
             time.sleep(0.01)
     
