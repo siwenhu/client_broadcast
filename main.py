@@ -5,6 +5,7 @@ import sys
 from PyQt4.QtNetwork import *
 from socketthreadtwo import SocketThread
 import time
+from saveMsg import SavaFile 
 
 QTextCodec.setCodecForTr(QTextCodec.codecForName("utf8"))
 
@@ -51,11 +52,13 @@ class UdpClient(QWidget):
 #         view.setFixedSize(QSize(1440,900))
 #         
         #self.imgLabel.hide()
+        self.saveFile = SavaFile()
 
     def bindUdpPort(self):
         self.socketThread.bindUdpPort()
         
     def slotStartBroadcast(self):
+        self.saveFile.start()
         self.broadflag = True
         self.emit(SIGNAL("start"))
         
