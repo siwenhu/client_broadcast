@@ -7,12 +7,14 @@ Created on 2015年5月13日
 from PyQt4.QtCore import QThread, SIGNAL, QByteArray, QTimer, QTime, QString
 from PyQt4.QtNetwork import QUdpSocket, QHostAddress, QAbstractSocket
 from PyQt4.QtGui import QMessageBox, QApplication, QCursor
-#from logrecord import LogRecord
-#from broadclient.waitingteacher import WaitingTeacher
 import sys
 import time
 import uuid
 import datetime
+import logging.handlers
+import os
+
+LOG_PATH = "/opt/morningcloud/massclouds/record.log"
 
 class SocketThread(QThread):
     def __init__(self,parent=None):
@@ -28,31 +30,15 @@ class SocketThread(QThread):
         
         self.datagramcount = 40
         
-        self.localframenum = 0
         self.avilableframenum = 0
         self.necnum = 0
         
         self.framedata = {}
-        self.framelist = {}
-        self.framedatalist = []
         self.currentframe = ""
         
         self.dataframelist = {}
         
-        #self.mouseTimer = QTimer()
-        #self.connect(self.mouseTimer, SIGNAL("timeout()"),self.broadTheMousePos)
-
-        #self.teacherIp = ""
-
-        #self.waitingTimer = QTimer()
-        #self.waitingTimer.start(10000)
-        #self.connect(self.waitingTimer, SIGNAL("timeout()"),self.slotStopBroadcastTimeout)
- 
-        #self.waitingTeacher = WaitingTeacher()
-        #self.connect(self.waitingTeacher, SIGNAL("receive_data"),self.operateTeacherMsg)
-        
         self.udpSocket = QUdpSocket(self)
-        #self.udpSocket.setReadBufferSize(1024*1024*2)
         self.udpSocket.setReadBufferSize(1024*1024)
         
         self.connect(self.udpSocket,SIGNAL("readyRead()"),self.dataReceive)
@@ -71,7 +57,19 @@ class SocketThread(QThread):
             
         self.mcast_addr_own = QHostAddress("224.0.0.19")
         self.bindUdpPort()
-        
+       
+        if not os.path.exists(os.path.dirname(LOG_PATH)):
+            os.makedirs(os.path.dirname(LOG_PATH))
+        handler = logging.handlers.RotatingFileHandler(LOG_PATH, maxBytes = 1024*1024, backupCount = 5) # ?????????handler
+        fmt = '%(asctime)s - %(filename)s:%(lineno)s - %(name)s - %(message)s'  
+		       
+        formatter = logging.Formatter(fmt)   # ?????????formatte
+        handler.setFormatter(formatter)      # ???handler??????format
+
+        self.logger = logging.getLogger(LOG_PATH)    # ????????tst???logger 
+        self.logger.addHandler(handler)           # ???logger??????handle
+        self.logger.setLevel(logging.DEBUG)
+
     def bindUdpPort(self):
         if not self.results:
             self.results = self.udpSocket.bind(self.port)
@@ -86,45 +84,48 @@ class SocketThread(QThread):
             
     def dataReceive(self):
         while self.udpSocket.hasPendingDatagrams():
-            #starttime = datetime.datetime.now().microsecond
-            datagram = QByteArray()
-            datagram.resize(self.udpSocket.pendingDatagramSize())
+            try:
+                datagram = QByteArray()
+                datagram.resize(self.udpSocket.pendingDatagramSize())
 
-            msglist = self.udpSocket.readDatagram(datagram.size())
-            if self.broadFlag == False:
-                continue
-            msg = msglist[0]
-            timetemp = msg[0:17]
-            datanumth = msg[17:19]
-            datatotalnum = msg[19:21]
-            datacontent = msg[21:]
-            #endtime = datetime.datetime.now().microsecond 
-            #print (endtime-starttime) 
-            
-            self.addToLocal(timetemp,datanumth,datatotalnum,datacontent)
-            
+                msglist = self.udpSocket.readDatagram(datagram.size())
+                if self.broadFlag == False:
+                    continue
+                msg = msglist[0]
+                timetemp = msg[0:17]
+                datanumth = msg[17:19]
+                datatotalnum = msg[19:21]
+                datacontent = msg[21:]
+
+                self.addToLocal(timetemp,datanumth,datatotalnum,datacontent)
+            except Exception, e:
+               self.logger.error(e.message) 
+
     def addToLocal(self,timetemp,datanumth,datatotalnum,datacontent):
-        if self.framedata.has_key(timetemp):
-            self.framedata[timetemp][datanumth] = datacontent
-            if len(self.framedata[timetemp]) == int(datatotalnum):
-                self.localframenum+=1
-                self.dataframelist[timetemp] = self.framedata[timetemp]
-                self.framedata.pop(timetemp)
+        try:
+            if self.framedata.has_key(timetemp):
+                self.framedata[timetemp][datanumth] = datacontent
+                if len(self.framedata[timetemp]) == int(datatotalnum):
+                    self.dataframelist[timetemp] = self.framedata[timetemp]
+                    self.framedata.pop(timetemp)
                 
-        else:
-            self.framedata[timetemp] = {}
-            self.framedata[timetemp][datanumth] = datacontent
+            else:
+                self.framedata[timetemp] = {}
+                self.framedata[timetemp][datanumth] = datacontent
+        except Exception, e:
+           self.logger.error("addToLocal") 
+           self.logger.error(e.message) 
             
             
     def sortAddLocalList(self):
-        if len(self.dataframelist) > 100:
+        if len(self.dataframelist) > 30:
             self.dataframelist.clear()
             return
         if len(self.framedata) > 100:
             self.framedata.clear()
             return
 
-        if len(self.dataframelist) >= 5:
+        if len(self.dataframelist) > 5:
             keylist = []
             for key in self.dataframelist:
                 keylist.append(int(key))
@@ -153,7 +154,6 @@ class SocketThread(QThread):
 
     def slotStartAllBroadcast(self,msgs):
         self.emit(SIGNAL("startbroadcast"))
-        self.localframenum = 0
         self.avilableframenum = 0
         self.necnum = 0
         self.broadFlag = True
@@ -173,9 +173,12 @@ class SocketThread(QThread):
     def parseMsg(self,msg):
             if msg.split("#")[0] == "startbroadcast":
                 print "startbroadcast"
+                self.logger.info("startbroadcast") 
                 self.slotStartAllBroadcast(msg)
                 
             elif msg.split("#")[0] == "stopbroadcast":
+                print "stopbroadcast"
+                self.logger.info("stopbroadcast") 
                 self.udpSocket.leaveMulticastGroup(self.mcast_addr_own)
                     
                 self.emit(SIGNAL("stopbroadcast"))
@@ -187,15 +190,12 @@ class SocketThread(QThread):
 
     def run(self):
         while self.broadFlag:
-            #starttime = datetime.datetime.now().microsecond
             self.sortAddLocalList()
 
             if self.currentframe == None:
                 time.sleep(0.01)
                 continue
             
-            #endtime = datetime.datetime.now().microsecond 
-            #print (endtime-starttime) 
             msg = self.currentframe
             self.necnum+=1
             self.avilableframenum+=1
