@@ -4,10 +4,10 @@ Created on 2015年5月13日
 
 @author: root
 '''
-from PyQt4.QtCore import QThread, SIGNAL, QByteArray, QTimer, QTime, QString
+from PyQt4.QtCore import QThread, SIGNAL, QByteArray, QTimer, QTime, QString, QMutex
 from PyQt4.QtNetwork import QUdpSocket, QHostAddress, QAbstractSocket
 from PyQt4.QtGui import QMessageBox, QApplication, QCursor
-import sys
+import sys, gc
 import time
 import uuid
 import datetime
@@ -20,18 +20,10 @@ class SocketThread(QThread):
     def __init__(self,parent=None):
         super(SocketThread,self).__init__(parent)
         self.clientuuid = str(uuid.uuid4())
-        self.list = []
-        self.timetemp = ""
-        self.msginfo = QByteArray()
         self.port = 5555
         self.broadFlag = False 
         self.currentStudent = False
         self.porttwo = 5556
-        
-        self.datagramcount = 40
-        
-        self.avilableframenum = 0
-        self.necnum = 0
         
         self.framedata = {}
         self.currentframe = ""
@@ -71,6 +63,9 @@ class SocketThread(QThread):
         self.connect(self.timer, SIGNAL("timeout()"), self.bindUdpPort)
         self.timer.start(1000)
 
+        self.mutex = QMutex()
+
+        gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_LEAK)
 
     def bindUdpPort(self):
         if not self.joinGroupTwo: 
@@ -82,12 +77,13 @@ class SocketThread(QThread):
     def dataReceive(self):
         while self.udpSocket.hasPendingDatagrams():
             try:
+                if self.broadFlag == False:
+                    continue
+
                 datagram = QByteArray()
                 datagram.resize(self.udpSocket.pendingDatagramSize())
 
                 msglist = self.udpSocket.readDatagram(datagram.size())
-                if self.broadFlag == False:
-                    continue
                 msg = msglist[0]
                 if len(msg) <= 21:
                     print "msg data smaller" 
@@ -98,11 +94,19 @@ class SocketThread(QThread):
                 datacontent = msg[21:]
 
                 self.addToLocal(timetemp,datanumth,datatotalnum,datacontent)
+
+                del msg 
+                del datacontent 
             except Exception, e:
-               self.logger.error(e.message) 
+                del datacontent 
+                self.logger.error(e.message) 
 
     def addToLocal(self,timetemp,datanumth,datatotalnum,datacontent):
         try:
+            if len(self.framedata) > 80:
+                self.framedata.clear()
+                return
+            self.mutex.lock()
             if self.framedata.has_key(timetemp):
                 self.framedata[timetemp][datanumth] = datacontent
                 if len(self.framedata[timetemp]) == int(datatotalnum):
@@ -110,22 +114,25 @@ class SocketThread(QThread):
                     self.framedata.pop(timetemp)
                 
             else:
-                self.framedata[timetemp] = {}
-                self.framedata[timetemp][datanumth] = datacontent
+               self.framedata[timetemp] = {}
+               self.framedata[timetemp][datanumth] = datacontent
+            self.mutex.unlock()
         except Exception, e:
-           self.logger.error("addToLocal") 
-           self.logger.error(e.message) 
-            
+            self.mutex.unlock()
+            self.logger.error("addToLocal") 
+            self.logger.error(e.message) 
             
     def sortAddLocalList(self):
+        self.mutex.lock()
         if len(self.dataframelist) > 30:
             self.dataframelist.clear()
-            return
-        if len(self.framedata) > 100:
-            self.framedata.clear()
-            return
+            #return
+        #if len(self.framedata) > 100:
+        #    self.framedata.clear()
+            #return
+        self.mutex.unlock()
 
-        if len(self.dataframelist) > 5:
+        if len(self.dataframelist) > 2:
             keylist = []
             for key in self.dataframelist:
                 keylist.append(int(key))
@@ -136,8 +143,10 @@ class SocketThread(QThread):
                 imgdata = imgdata + self.dataframelist[("%017d"%(keylist[0]))][keys]
         
             self.currentframe = imgdata
-        
             self.dataframelist.pop(("%017d"%(keylist[0])))
+
+            del keylist 
+            del imgdata
         else:
             self.currentframe = None
             
@@ -155,8 +164,6 @@ class SocketThread(QThread):
     def slotStartAllBroadcast(self,msgs):
         self.udpSocket.joinMulticastGroup(self.mcast_addr)
         self.emit(SIGNAL("startbroadcast"))
-        self.avilableframenum = 0
-        self.necnum = 0
         self.broadFlag = True
         self.start()
 
@@ -198,12 +205,10 @@ class SocketThread(QThread):
                 continue
             
             #msg = self.currentframe
-            self.necnum+=1
-            self.avilableframenum+=1
             self.emit(SIGNAL("imgsignal"), self.currentframe)
             #self.msginfo = msg
-                    
             time.sleep(0.01)
+            del self.currentframe
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
