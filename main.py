@@ -13,6 +13,7 @@ import uuid
 import datetime
 import logging.handlers
 import os
+import traceback
 
 LOG_PATH = "/opt/morningcloud/massclouds/record.log"
 
@@ -110,7 +111,7 @@ class SocketThread(QThread):
             if self.framedata.has_key(timetemp):
                 self.framedata[timetemp][datanumth] = datacontent
                 if len(self.framedata[timetemp]) == int(datatotalnum):
-                    #self.dataframelist[timetemp] = self.framedata[timetemp]
+                    self.dataframelist[timetemp] = self.framedata[timetemp]
                     self.framedata.pop(timetemp)
                 
             else:
@@ -132,23 +133,30 @@ class SocketThread(QThread):
             #return
         self.mutex.unlock()
 
-        if len(self.dataframelist) > 2:
-            keylist = []
-            for key in self.dataframelist:
-                keylist.append(int(key))
-            keylist.sort()
-            imgdata = ""
-            for i in range(0,len(self.dataframelist[("%017d"%(keylist[0]))])):
-                keys = "%02d"%i
-                imgdata = imgdata + self.dataframelist[("%017d"%(keylist[0]))][keys]
-        
-            self.currentframe = imgdata
-            self.dataframelist.pop(("%017d"%(keylist[0])))
+        try:
+            if len(self.dataframelist) > 2:
+                keylist = []
+                for key in self.dataframelist:
+                    keylist.append(int(key))
+                keylist.sort()
+                #imgdata = ""
+                #for i in range(0,len(self.dataframelist[("%017d"%(keylist[0]))])):
+                #    keys = "%02d"%i
+                #    imgdata = imgdata + self.dataframelist[("%017d"%(keylist[0]))][keys]
 
-            del keylist 
-            del imgdata
-        else:
-            self.currentframe = None
+                #self.currentframe = imgdata
+                self.currentframe = None 
+                self.mutex.lock()
+                self.dataframelist.pop(("%017d"%(keylist[0])))
+                self.mutex.unlock()
+    
+                #del keylist 
+                #del imgdata
+            else:
+                self.currentframe = None
+        except Exception, e:
+            self.mutex.unlock()
+            self.logger.error(e.message) 
             
     def dataReceiveTwo(self):
         while self.udpSocketTwo.hasPendingDatagrams():
@@ -165,7 +173,7 @@ class SocketThread(QThread):
         self.udpSocket.joinMulticastGroup(self.mcast_addr)
         self.emit(SIGNAL("startbroadcast"))
         self.broadFlag = True
-        #self.start()
+        self.start()
 
     
     def slotStopBroadcast(self):
@@ -208,7 +216,7 @@ class SocketThread(QThread):
             self.emit(SIGNAL("imgsignal"), self.currentframe)
             #self.msginfo = msg
             time.sleep(0.01)
-            del self.currentframe
+            #del self.currentframe
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
