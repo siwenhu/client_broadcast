@@ -30,6 +30,7 @@ class SocketThread(QThread):
         self.currentframe = ""
         
         self.dataframelist = {}
+        self.joinGroupTwo = False
         
         self.udpSocket = QUdpSocket(self)
         self.udpSocket.setReadBufferSize(1024*1024)
@@ -100,6 +101,10 @@ class SocketThread(QThread):
                 #del datacontent 
             except Exception, e:
                 #del datacontent 
+                f = open("/opt/morningcloud/massclouds/record.txt", 'a')
+                traceback.print_exc(file=f)
+                f.flush()
+                f.close()
                 self.logger.error(e.message) 
 
     def addToLocal(self,timetemp,datanumth,datatotalnum,datacontent):
@@ -120,6 +125,10 @@ class SocketThread(QThread):
             self.mutex.unlock()
         except Exception, e:
             self.mutex.unlock()
+            f = open("/opt/morningcloud/massclouds/record.txt", 'a')
+            traceback.print_exc(file=f)
+            f.flush()
+            f.close()
             self.logger.error("addToLocal") 
             self.logger.error(e.message) 
             
@@ -156,6 +165,10 @@ class SocketThread(QThread):
                 self.currentframe = None
         except Exception, e:
             self.mutex.unlock()
+            f = open("/opt/morningcloud/massclouds/record.txt", 'a')
+            traceback.print_exc(file=f)
+            f.flush()
+            f.close()
             self.logger.error(e.message) 
             
     def dataReceiveTwo(self):
@@ -170,7 +183,9 @@ class SocketThread(QThread):
         
 
     def slotStartAllBroadcast(self,msgs):
-        self.udpSocket.joinMulticastGroup(self.mcast_addr)
+        result = self.udpSocket.joinMulticastGroup(self.mcast_addr)
+        self.logger.info("joinGroup:%d" % result) 
+        print "======result:%d" % result
         self.emit(SIGNAL("startbroadcast"))
         self.broadFlag = True
         self.start()
@@ -195,8 +210,10 @@ class SocketThread(QThread):
             elif msg.split("#")[0] == "stopbroadcast":
                 print "stopbroadcast"
                 self.logger.info("stopbroadcast") 
-                self.udpSocket.leaveMulticastGroup(self.mcast_addr)
+                result = self.udpSocket.leaveMulticastGroup(self.mcast_addr)
                     
+                self.logger.info("leaveGroup:%d" % result) 
+                print "-------result:%d" % result
                 self.emit(SIGNAL("stopbroadcast"))
                 self.broadFlag = False
                 
