@@ -93,7 +93,7 @@ class SocketThread(QThread):
                 datatotalnum = msg[19:21]
                 datacontent = msg[21:]
 
-                #self.addToLocal(timetemp,datanumth,datatotalnum,datacontent)
+                self.addToLocal(timetemp,datanumth,datatotalnum,datacontent)
 
                 #del msg 
                 #del datacontent 
@@ -110,7 +110,7 @@ class SocketThread(QThread):
             if self.framedata.has_key(timetemp):
                 self.framedata[timetemp][datanumth] = datacontent
                 if len(self.framedata[timetemp]) == int(datatotalnum):
-                    self.dataframelist[timetemp] = self.framedata[timetemp]
+                    #self.dataframelist[timetemp] = self.framedata[timetemp]
                     self.framedata.pop(timetemp)
                 
             else:
