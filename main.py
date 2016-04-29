@@ -88,7 +88,7 @@ class SocketThread(QThread):
                 msglist = self.udpSocket.readDatagram(datagram.size())
                 msg = msglist[0]
                 if len(msg) <= 21:
-                    print "msg data smaller" 
+                    self.logger.info("msg data smaller") 
                     continue
                 timetemp = msg[0:17]
                 datanumth = msg[17:19]
@@ -109,7 +109,7 @@ class SocketThread(QThread):
 
     def addToLocal(self,timetemp,datanumth,datatotalnum,datacontent):
         try:
-            if len(self.framedata) > 80:
+            if len(self.framedata) > 30:
                 self.framedata.clear()
                 return
             self.mutex.lock()
@@ -134,7 +134,7 @@ class SocketThread(QThread):
             
     def sortAddLocalList(self):
         self.mutex.lock()
-        if len(self.dataframelist) > 10:
+        if len(self.dataframelist) > 8:
             self.dataframelist.clear()
             #return
         #if len(self.framedata) > 100:
@@ -148,15 +148,15 @@ class SocketThread(QThread):
                 for key in self.dataframelist:
                     keylist.append(int(key))
                 keylist.sort()
-                #imgdata = ""
-                #for i in range(0,len(self.dataframelist[("%017d"%(keylist[0]))])):
-                #    keys = "%02d"%i
-                #    imgdata = imgdata + self.dataframelist[("%017d"%(keylist[0]))][keys]
+                imgdata = ""
+                for i in range(0,len(self.dataframelist[("%017d"%(keylist[0]))])):
+                    keys = "%02d"%i
+                    imgdata = imgdata + self.dataframelist[("%017d"%(keylist[0]))][keys]
 
-                #self.currentframe = imgdata
-                self.currentframe = None 
+                self.currentframe = imgdata
+                #self.currentframe = None 
                 #self.mutex.lock()
-                #self.dataframelist.pop(("%017d"%(keylist[0])))
+                self.dataframelist.pop(("%017d"%(keylist[0])))
                 #self.mutex.unlock()
     
                 #del keylist 
@@ -185,7 +185,6 @@ class SocketThread(QThread):
     def slotStartAllBroadcast(self,msgs):
         result = self.udpSocket.joinMulticastGroup(self.mcast_addr)
         self.logger.info("joinGroup:%d" % result) 
-        print "======result:%d" % result
         self.emit(SIGNAL("startbroadcast"))
         self.broadFlag = True
         self.start()
@@ -213,7 +212,6 @@ class SocketThread(QThread):
                 result = self.udpSocket.leaveMulticastGroup(self.mcast_addr)
                     
                 self.logger.info("leaveGroup:%d" % result) 
-                print "-------result:%d" % result
                 self.emit(SIGNAL("stopbroadcast"))
                 self.broadFlag = False
                 
