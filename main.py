@@ -134,7 +134,7 @@ class SocketThread(QThread):
             
     def sortAddLocalList(self):
         self.mutex.lock()
-        if len(self.dataframelist) > 30:
+        if len(self.dataframelist) > 10:
             self.dataframelist.clear()
             #return
         #if len(self.framedata) > 100:
@@ -155,9 +155,9 @@ class SocketThread(QThread):
 
                 #self.currentframe = imgdata
                 self.currentframe = None 
-                self.mutex.lock()
-                self.dataframelist.pop(("%017d"%(keylist[0])))
-                self.mutex.unlock()
+                #self.mutex.lock()
+                #self.dataframelist.pop(("%017d"%(keylist[0])))
+                #self.mutex.unlock()
     
                 #del keylist 
                 #del imgdata
