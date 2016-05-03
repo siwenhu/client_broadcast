@@ -79,17 +79,16 @@ class SocketThread(QThread):
     def dataReceive(self):
         while self.udpSocket.hasPendingDatagrams():
             try:
-                if self.broadFlag == False:
-                    continue
-
                 datagram = QByteArray()
                 datagram.resize(self.udpSocket.pendingDatagramSize())
 
                 msglist = self.udpSocket.readDatagram(datagram.size())
-                msg = msglist[0]
-                if len(msg) <= 21:
+                if self.broadFlag == False:
+                    continue
+                if len(msglist[0]) <= 21:
                     self.logger.info("msg data smaller") 
                     continue
+                msg = msglist[0]
                 timetemp = msg[0:17]
                 datanumth = msg[17:19]
                 datatotalnum = msg[19:21]
@@ -110,19 +109,20 @@ class SocketThread(QThread):
     def addToLocal(self,timetemp,datanumth,datatotalnum,datacontent):
         try:
             if len(self.framedata) > 30:
-                self.framedata.clear()
-                return
-            self.mutex.lock()
+                if int(datanumth) != int(datatotalnum) - 1:
+                    self.framedata.clear()
+                    return
             if self.framedata.has_key(timetemp):
                 self.framedata[timetemp][datanumth] = datacontent
                 if len(self.framedata[timetemp]) == int(datatotalnum):
+                    self.mutex.lock()
                     self.dataframelist[timetemp] = self.framedata[timetemp]
+                    self.mutex.unlock()
                     self.framedata.pop(timetemp)
                 
             else:
                self.framedata[timetemp] = {}
                self.framedata[timetemp][datanumth] = datacontent
-            self.mutex.unlock()
         except Exception, e:
             self.mutex.unlock()
             f = open("/opt/morningcloud/massclouds/record.txt", 'a')
@@ -133,17 +133,14 @@ class SocketThread(QThread):
             self.logger.error(e.message) 
             
     def sortAddLocalList(self):
-        self.mutex.lock()
         if len(self.dataframelist) > 8:
+            self.mutex.lock()
             self.dataframelist.clear()
-            #return
-        #if len(self.framedata) > 100:
-        #    self.framedata.clear()
-            #return
-        self.mutex.unlock()
+            self.mutex.unlock()
 
         try:
             if len(self.dataframelist) > 2:
+                self.mutex.lock()
                 keylist = []
                 for key in self.dataframelist:
                     keylist.append(int(key))
@@ -154,15 +151,14 @@ class SocketThread(QThread):
                     imgdata = imgdata + self.dataframelist[("%017d"%(keylist[0]))][keys]
 
                 self.currentframe = imgdata
-                #self.currentframe = None 
-                #self.mutex.lock()
                 self.dataframelist.pop(("%017d"%(keylist[0])))
-                #self.mutex.unlock()
+                self.mutex.unlock()
     
                 #del keylist 
                 #del imgdata
             else:
                 self.currentframe = None
+
         except Exception, e:
             self.mutex.unlock()
             f = open("/opt/morningcloud/massclouds/record.txt", 'a')
@@ -201,23 +197,25 @@ class SocketThread(QThread):
 
 
     def parseMsg(self,msg):
-            if msg.split("#")[0] == "startbroadcast":
-                print "startbroadcast"
-                self.logger.info("startbroadcast") 
-                self.slotStartAllBroadcast(msg)
+        if msg.split("#")[0] == "startbroadcast":
+            print "startbroadcast"
+            self.logger.info("startbroadcast") 
+            self.slotStartAllBroadcast(msg)
                 
-            elif msg.split("#")[0] == "stopbroadcast":
-                print "stopbroadcast"
-                self.logger.info("stopbroadcast") 
-                result = self.udpSocket.leaveMulticastGroup(self.mcast_addr)
+        elif msg.split("#")[0] == "stopbroadcast":
+            print "stopbroadcast"
+            self.logger.info("stopbroadcast") 
+            result = self.udpSocket.leaveMulticastGroup(self.mcast_addr)
                     
-                self.logger.info("leaveGroup:%d" % result) 
-                self.emit(SIGNAL("stopbroadcast"))
-                self.broadFlag = False
+            self.logger.info("leaveGroup:%d" % result) 
+            self.emit(SIGNAL("stopbroadcast"))
+            self.broadFlag = False
                 
-                self.framedata.clear()
-                self.dataframelist.clear()
-                self.currentframe = None
+            self.mutex.lock()
+            self.framedata.clear()
+            self.dataframelist.clear()
+            self.mutex.unlock()
+            self.currentframe = None
 
     def run(self):
         while self.broadFlag:
