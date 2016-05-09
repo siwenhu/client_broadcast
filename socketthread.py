@@ -12,7 +12,7 @@ import time
 import uuid
 import datetime
 import logging.handlers
-import os, socket, thread
+import os, socket, threading
 import traceback
 
 LOG_PATH = "/opt/morningcloud/massclouds/record.log"
@@ -76,15 +76,12 @@ class SocketThread(QThread):
         self.logger.addHandler(handler)           # ???logger??????handle
         self.logger.setLevel(logging.DEBUG)
 
-        #self.timer = QTimer()
-        #self.connect(self.timer, SIGNAL("timeout()"), self.dataReceiveTwo)
-        #self.timer.start(100)
-
-        self.mutex = QMutex()
+        #self.mutex = QMutex()
 
         gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_LEAK)
-        #self.dataReceiveTwo()
-        thread.start_new_thread(self.dataReceiveTwo, ())
+
+        pContrlCMD = threading.Thread(target=self.dataReceiveTwo)
+        pContrlCMD.start()
 
     def bindUdpPort(self):
         if not self.joinGroupTwo: 
