@@ -35,7 +35,8 @@ class SocketThread(QThread):
         self.udpSocket = QUdpSocket(self)
         self.udpSocket.setReadBufferSize(1024*1024)
         
-        self.connect(self.udpSocket,SIGNAL("readyRead()"),self.dataReceive)
+        #self.connect(self.udpSocket,SIGNAL("readyRead()"),self.dataReceive)
+        self.connect(self.udpSocket,SIGNAL("readyRead()"),self.dataReceiveTest)
         self.results = self.udpSocket.bind(self.port)
         self.mcast_addr = QHostAddress("224.0.0.17")
         
@@ -75,6 +76,22 @@ class SocketThread(QThread):
             self.logger.info("joinGroupTwo:%d" % self.joinGroupTwo) 
         else:
             self.timer.stop()
+
+    def dataReceiveTest(self):
+        while self.udpSocket.hasPendingDatagrams():
+            try:
+                datagram = QByteArray()
+                datagram.resize(self.udpSocket.pendingDatagramSize())
+
+                self.udpSocket.readDatagram(datagram.size())
+
+            except Exception, e:
+                #del datacontent 
+                f = open("/opt/morningcloud/massclouds/record.txt", 'a')
+                traceback.print_exc(file=f)
+                f.flush()
+                f.close()
+                self.logger.error(e.message) 
 
     def dataReceive(self):
         while self.udpSocket.hasPendingDatagrams():
