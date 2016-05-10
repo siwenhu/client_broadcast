@@ -32,38 +32,18 @@ class SocketThread(QThread):
         self.dataframelist = {}
         self.joinGroupTwo = False
         
-        #self.udpSocket = QUdpSocket(self)
-        #self.udpSocket.setReadBufferSize(1024*1024)
         self.udpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) 
         self.udpSocket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024*1024)
         self.udpSocket.bind(("224.0.0.17",self.port))
-        self.udpSocket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
-        self.udpSocket.setsockopt(socket.IPPROTO_IP,
-        socket.IP_ADD_MEMBERSHIP,
-        socket.inet_aton("224.0.0.17") + socket.inet_aton("0.0.0.0"));
-        
-        #self.connect(self.udpSocket,SIGNAL("readyRead()"),self.dataReceive)
-        #self.results = self.udpSocket.bind(self.port)
-        #self.mcast_addr = QHostAddress("224.0.0.17")
+        self.udpSocket.setblocking(0)
+        #self.udpSocket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
         
         self.udpSocketTwo = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) 
         self.udpSocketTwo.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024)
         self.udpSocketTwo.bind(("224.0.0.18",self.porttwo))
-        self.udpSocketTwo.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
-        self.udpSocketTwo.setsockopt(socket.IPPROTO_IP,
-        socket.IP_ADD_MEMBERSHIP,
-        socket.inet_aton("224.0.0.18") + socket.inet_aton("0.0.0.0"));
+        self.udpSocket.setblocking(0)
+        #self.udpSocketTwo.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
 
-        #self.mcast_addr_two = QHostAddress("224.0.0.18")
-        #self.udpSocketTwo = QUdpSocket(self)
-        #self.udpSocketTwo.setReadBufferSize(1024)
-        #self.connect(self.udpSocketTwo,SIGNAL("readyRead()"),self.dataReceiveTwo)
-        #self.result = self.udpSocketTwo.bind(self.porttwo)
-        #if self.result:
-        #    self.joinGroupTwo = self.udpSocketTwo.joinMulticastGroup(self.mcast_addr_two)
-        #    print("joinmulticastGroup %d" % self.joinGroupTwo)
-            
-       
         if not os.path.exists(os.path.dirname(LOG_PATH)):
             os.makedirs(os.path.dirname(LOG_PATH))
         handler = logging.handlers.RotatingFileHandler(LOG_PATH, maxBytes = 1024*1024, backupCount = 5) # ?????????handler
@@ -80,8 +60,15 @@ class SocketThread(QThread):
 
         gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_LEAK)
 
-        pContrlCMD = threading.Thread(target=self.dataReceiveTwo)
-        pContrlCMD.start()
+        self.setTimer = QTimer()
+        self.connect(self.setTimer, SIGNAL("timeout()"), self.setSocketOpt)
+        self.setTimer.start(100)
+
+        self.data_ready = threading.Event()
+        self.pContrlCMD = threading.Thread(target=self.dataReceiveTwo)
+        self.pSortFrame = threading.Thread(target=self.sortFrame, args=(self.data_ready,))
+        self.pContrlCMD.start()
+        #self.pSortFrame.start()
 
     def bindUdpPort(self):
         if not self.joinGroupTwo: 
@@ -89,6 +76,21 @@ class SocketThread(QThread):
             self.logger.info("joinGroupTwo:%d" % self.joinGroupTwo) 
         else:
             self.timer.stop()
+
+    def setSocketOpt(self):
+        try:
+            self.udpSocket.setsockopt(socket.IPPROTO_IP,
+            socket.IP_ADD_MEMBERSHIP,
+            socket.inet_aton("224.0.0.17") + socket.inet_aton("0.0.0.0"));
+
+            self.udpSocketTwo.setsockopt(socket.IPPROTO_IP,
+            socket.IP_ADD_MEMBERSHIP,
+            socket.inet_aton("224.0.0.18") + socket.inet_aton("0.0.0.0"));
+
+            self.setTimer.stop()
+        except socket.error, e:
+            #self.logger.error(e.message)
+            pass
 
     def dataReceive(self):
         try:
@@ -99,24 +101,20 @@ class SocketThread(QThread):
             datatotalnum = msg[19:21]
             datacontent = msg[21:]
 
-            #print timetemp
-            #print datatotalnum 
-            #print datanumth 
             self.addToLocal(timetemp,datanumth,datatotalnum,datacontent)
 
-            #del msg 
-            #del datacontent 
         except Exception, e:
-            #del datacontent 
             f = open("/opt/morningcloud/massclouds/record.txt", 'a')
             traceback.print_exc(file=f)
             f.flush()
             f.close()
-            self.logger.error(e.message) 
+            self.logger.error(e.message)
+
+        #time.sleep(0.01)
 
     def addToLocal(self,timetemp,datanumth,datatotalnum,datacontent):
         try:
-            if len(self.framedata) > 30:
+            if len(self.framedata) > 60:
                 self.framedata.clear()
                 return
             if self.framedata.has_key(timetemp):
@@ -166,21 +164,26 @@ class SocketThread(QThread):
             f.flush()
             f.close()
             self.logger.error(e.message) 
-            
+
     def dataReceiveTwo(self):
         while True:
-            msglist, addr = self.udpSocketTwo.recvfrom(64)
+            try:
+                msglist, addr = self.udpSocketTwo.recvfrom(64)
 
-            self.parseMsg(msglist)
+                self.parseMsg(msglist)
+
+            except socket.error, e:
+                pass
             time.sleep(0.01)
-        
+            
 
     def slotStartAllBroadcast(self,msgs):
         #result = self.udpSocket.joinMulticastGroup(self.mcast_addr)
         #self.logger.info("joinGroup:%d" % result) 
         self.emit(SIGNAL("startbroadcast"))
         self.broadFlag = True
-        self.start()
+        #self.start()
+        self.pSortFrame.start()
 
     
     def slotStopBroadcast(self):
@@ -198,6 +201,7 @@ class SocketThread(QThread):
             print "startbroadcast"
             self.logger.info("startbroadcast") 
             self.slotStartAllBroadcast(msg)
+            self.data_ready.set()
                 
         elif msg.split("#")[0] == "stopbroadcast":
             print "stopbroadcast"
@@ -212,7 +216,10 @@ class SocketThread(QThread):
             self.dataframelist.clear()
             self.currentframe = None
 
-    def run(self):
+    def sortFrame(self, event):
+        while not event.is_set():
+            event.wait(0.01)
+
         while self.broadFlag:
             self.dataReceive()
             self.sortAddLocalList()
