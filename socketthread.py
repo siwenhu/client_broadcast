@@ -94,7 +94,10 @@ class SocketThread(QThread):
 
     def dataReceive(self):
         try:
+            #startTime = datetime.datetime.now()
             msglist,add = self.udpSocket.recvfrom(32*1024+21)
+            #endTime = datetime.datetime.now()
+            #print (endTime-startTime).microseconds
             msg = msglist
             timetemp = msg[0:17]
             datanumth = msg[17:19]
@@ -103,12 +106,13 @@ class SocketThread(QThread):
 
             self.addToLocal(timetemp,datanumth,datatotalnum,datacontent)
 
-        except Exception, e:
-            f = open("/opt/morningcloud/massclouds/record.txt", 'a')
-            traceback.print_exc(file=f)
-            f.flush()
-            f.close()
-            self.logger.error(e.message)
+        except socket.error, e:
+            pass
+            #f = open("/opt/morningcloud/massclouds/record.txt", 'a')
+            #traceback.print_exc(file=f)
+            #f.flush()
+            #f.close()
+            #self.logger.error(e.message)
 
         #time.sleep(0.01)
 
