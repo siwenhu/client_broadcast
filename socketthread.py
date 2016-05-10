@@ -66,8 +66,8 @@ class SocketThread(QThread):
 
         self.data_ready = threading.Event()
         self.pContrlCMD = threading.Thread(target=self.dataReceiveTwo)
-        self.pSortFrame = threading.Thread(target=self.sortFrame, args=(self.data_ready,))
         self.pContrlCMD.start()
+        #self.pSortFrame = threading.Thread(target=self.sortFrame, args=(self.data_ready,))
         #self.pSortFrame.start()
 
     def bindUdpPort(self):
@@ -183,6 +183,7 @@ class SocketThread(QThread):
         self.emit(SIGNAL("startbroadcast"))
         self.broadFlag = True
         #self.start()
+        self.pSortFrame = threading.Thread(target=self.sortFrame, args=(self.data_ready,))
         self.pSortFrame.start()
 
     
@@ -198,7 +199,7 @@ class SocketThread(QThread):
 
     def parseMsg(self,msg):
         if msg.split("#")[0] == "startbroadcast":
-            print "startbroadcast"
+            print "----------startbroadcast"
             self.logger.info("startbroadcast") 
             self.slotStartAllBroadcast(msg)
             self.data_ready.set()
